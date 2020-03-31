@@ -2,6 +2,46 @@ import harden from '@agoric/harden';
 import Nat from '@agoric/nat';
 import { isPromise } from '@agoric/produce-promise';
 
+const presenceToInterface = new WeakMap();
+
+// Simple semantics, just tell what interface (or undefined) a presence has.
+export const getInterfaceOf = presence => presenceToInterface.get(presence);
+
+// Do a deep copy of the object, handling Proxies and recursion.
+export const deepCopyOfData = harden((obj, already = new WeakMap()) => {
+  if (already.has(obj)) {
+    return already.get(obj);
+  }
+  const objType = typeof obj;
+  switch (objType) {
+    case 'string':
+    case 'number':
+    case 'undefined':
+      return obj;
+
+    case 'object': {
+      if (obj === null) {
+        return null;
+      }
+      // Make a shallow copy with a new identity.
+      // This takes a snapshot of obj, even if it was a Proxy.
+      const copy = Array.isArray(obj) ? [...obj] : { ...obj };
+
+      // Prevent recursion.
+      already.set(obj, copy);
+
+      // Turn it into a deep copy.
+      Object.entries(copy).forEach(([i, value]) => {
+        copy[i] = deepCopyOfData(value, already);
+      });
+      return copy;
+    }
+
+    default:
+      throw Error(`Object ${objType} is not recognized as data`);
+  }
+});
+
 // Special property name that indicates an encoding that needs special
 // decoding.
 const QCLASS = '@qclass';
@@ -136,11 +176,6 @@ export function mustPassByPresence(val) {
 
   const names = Object.getOwnPropertyNames(val);
   names.forEach(name => {
-    if (name === 'e') {
-      // hack to allow Vows to pass-by-presence
-      // TODO: Make sure .e. is gone. Then get rid of this hack.
-      return;
-    }
     if (typeof val[name] !== 'function') {
       throw new Error(
         `cannot serialize objects with non-methods like the .${name} in ${val}`,
@@ -149,9 +184,12 @@ export function mustPassByPresence(val) {
     }
   });
 
-  const p = Object.getPrototypeOf(val);
-  if (p !== null && p !== Object.prototype) {
-    mustPassByPresence(p);
+  if (!getInterfaceOf(val)) {
+    // Don't need the prototype check, since we constructed it specially.
+    const p = Object.getPrototypeOf(val);
+    if (p !== null && p !== Object.prototype) {
+      mustPassByPresence(p);
+    }
   }
   // ok!
 }
@@ -184,6 +222,9 @@ export function passStyleOf(val) {
   const typestr = typeof val;
   switch (typestr) {
     case 'object': {
+      if (getInterfaceOf(val)) {
+        return 'presence';
+      }
       if (val === null) {
         return 'null';
       }
@@ -564,3 +605,62 @@ export function makeMarshal(
     unserialize,
   });
 }
+
+// TODO: Document!
+// https://github.com/Agoric/agoric-sdk/issues/804
+export const Presence = harden(
+  (iface = 'Presence', props = {}, presence = {}) => {
+    // Ensure that the presence isn't already registered.
+    if (presenceToInterface.has(presence)) {
+      throw Error(`Presence ${presence} is already mapped to an interface`);
+    }
+
+    iface = deepCopyOfData(iface);
+    const ifaceType = typeof iface;
+
+    // Find the alleged name.
+    if (ifaceType !== 'string') {
+      throw Error(
+        `Interface must be a string, not ${ifaceType}; unimplemented`,
+      );
+    }
+    const allegedName = iface;
+
+    if (Object.isFrozen(presence)) {
+      throw Error(`Cannot make a frozen object into a Presence`);
+    }
+
+    const descs = {};
+    Object.entries(Object.getOwnPropertyDescriptors(props)).forEach(
+      ([prop, desc]) => {
+        const propType = typeof prop;
+        if (propType !== 'string') {
+          throw Error(
+            `Property ${prop} must be a string, not ${propType}; unimplemented`,
+          );
+        }
+        descs[prop] = deepCopyOfData(desc);
+      },
+    );
+
+    // Add the data properties.
+    Object.defineProperties(presence, descs);
+
+    // Set the prototype for debuggability.
+    const presenceProto = harden({
+      toString() {
+        return `[${allegedName}]`;
+      },
+      [Symbol.toStringTag]: allegedName,
+    });
+    Object.setPrototypeOf(presence, presenceProto);
+
+    // We're committed, so do the harden.
+    harden(presence);
+    harden(iface);
+
+    // Keep the interface for future reference.
+    presenceToInterface.set(presence, iface);
+    return presence;
+  },
+);
