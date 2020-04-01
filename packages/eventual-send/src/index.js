@@ -50,17 +50,17 @@ export const E = makeE(hp);
 export function makeHandledPromise(Promise) {
   // xs doesn't support WeakMap in pre-loaded closures
   // aka "vetted customization code"
-  let presenceToHandler;
-  let presenceToPromise;
+  let remoteToHandler;
+  let remoteToPromise;
   let promiseToUnsettledHandler;
-  let promiseToPresence; // only for HandledPromise.unwrap
+  let promiseToRemote; // only for HandledPromise.unwrap
   let forwardedPromiseToPromise; // forwarding, union-find-ish
   function ensureMaps() {
-    if (!presenceToHandler) {
-      presenceToHandler = new WeakMap();
-      presenceToPromise = new WeakMap();
+    if (!remoteToHandler) {
+      remoteToHandler = new WeakMap();
+      remoteToPromise = new WeakMap();
       promiseToUnsettledHandler = new WeakMap();
-      promiseToPresence = new WeakMap();
+      promiseToRemote = new WeakMap();
       forwardedPromiseToPromise = new WeakMap();
     }
   }
@@ -84,21 +84,21 @@ export function makeHandledPromise(Promise) {
     while (forwardedPromiseToPromise.has(p)) {
       p = forwardedPromiseToPromise.get(p);
     }
-    const presence = promiseToPresence.get(p);
-    if (presence) {
-      // Presences are final, so it is ok to propagate
+    const remote = promiseToRemote.get(p);
+    if (remote) {
+      // Remotes are final, so it is ok to propagate
       // this upstream.
       while (target !== p) {
         const parent = forwardedPromiseToPromise.get(target);
         forwardedPromiseToPromise.delete(target);
         promiseToUnsettledHandler.delete(target);
-        promiseToPresence.set(target, presence);
+        promiseToRemote.set(target, remote);
         target = parent;
       }
     } else {
       // We propagate p and remove all other unsettled handlers
       // upstream.
-      // Note that everything except presences is covered here.
+      // Note that everything except remotes is covered here.
       while (target !== p) {
         const parent = forwardedPromiseToPromise.get(target);
         forwardedPromiseToPromise.set(target, p);
@@ -137,13 +137,13 @@ export function makeHandledPromise(Promise) {
         let targetP;
         if (
           promiseToUnsettledHandler.has(value) ||
-          promiseToPresence.has(value)
+          promiseToRemote.has(value)
         ) {
           targetP = value;
         } else {
           // We're resolving to a non-promise, so remove our handler.
           promiseToUnsettledHandler.delete(handledP);
-          targetP = presenceToPromise.get(value);
+          targetP = remoteToPromise.get(value);
         }
         // Ensure our data structure is a propert tree (avoid cycles).
         if (targetP && targetP !== handledP) {
@@ -243,7 +243,7 @@ export function makeHandledPromise(Promise) {
       handledReject(reason);
     };
 
-    const resolveWithPresence = presenceHandler => {
+    const resolveWithRemote = remoteHandler => {
       if (resolved) {
         return resolvedTarget;
       }
@@ -252,18 +252,18 @@ export function makeHandledPromise(Promise) {
       }
       try {
         // Sanity checks.
-        validateHandler(presenceHandler);
+        validateHandler(remoteHandler);
 
-        // Validate and install our mapped target (i.e. presence).
-        resolvedTarget = Object.create(null);
+        // Validate and install our mapped target (i.e. remote).
+        resolvedRemote = Object.create(null);
 
-        // Create table entries for the presence mapped to the
+        // Create table entries for the remote mapped to the
         // fulfilledHandler.
-        presenceToPromise.set(resolvedTarget, handledP);
-        promiseToPresence.set(handledP, resolvedTarget);
-        presenceToHandler.set(resolvedTarget, presenceHandler);
+        remoteToPromise.set(resolvedTarget, handledP);
+        promiseToRemote.set(handledP, resolvedTarget);
+        remoteToHandler.set(resolvedTarget, remoteHandler);
 
-        // We committed to this presence, so resolve.
+        // We committed to this remote, so resolve.
         handledResolve(resolvedTarget);
         return resolvedTarget;
       } catch (e) {
@@ -272,7 +272,7 @@ export function makeHandledPromise(Promise) {
       }
     };
 
-    const resolveHandled = async (target, deprecatedPresenceHandler) => {
+    const resolveHandled = async (target, deprecatedRemoteHandler) => {
       if (resolved) {
         return;
       }
@@ -280,9 +280,9 @@ export function makeHandledPromise(Promise) {
         throw new TypeError('internal: already forwarded');
       }
       try {
-        if (deprecatedPresenceHandler) {
+        if (deprecatedRemoteHandler) {
           throw TypeError(
-            `resolveHandled no longer accepts a handler; use resolveWithPresence`,
+            `resolveHandled no longer accepts a handler; use resolveWithRemote`,
           );
         }
 
@@ -299,7 +299,7 @@ export function makeHandledPromise(Promise) {
         resolveHandled(...args);
       },
       rejectHandled,
-      resolveWithPresence,
+      resolveWithRemote,
     );
     return handledP;
   }
@@ -338,8 +338,8 @@ export function makeHandledPromise(Promise) {
     },
     resolve(value) {
       ensureMaps();
-      // Resolving a Presence returns the pre-registered handled promise.
-      let resolvedPromise = presenceToPromise.get(value);
+      // Resolving a Remote returns the pre-registered handled promise.
+      let resolvedPromise = remoteToPromise.get(value);
       if (!resolvedPromise) {
         resolvedPromise = promiseResolve(value);
       }
@@ -381,16 +381,16 @@ export function makeHandledPromise(Promise) {
 
       // Try to look up the HandledPromise.
       ensureMaps();
-      const pr = presenceToPromise.get(value) || value;
+      const pr = remoteToPromise.get(value) || value;
 
-      // Find the fulfilled presence for that HandledPromise.
-      const presence = promiseToPresence.get(pr);
-      if (!presence) {
+      // Find the fulfilled remote for that HandledPromise.
+      const remote = promiseToRemote.get(pr);
+      if (!remote) {
         throw TypeError(
-          `Value is a Thenble but not a HandledPromise fulfilled to a presence`,
+          `Value is a Thenble but not a HandledPromise fulfilled to a remote`,
         );
       }
-      return presence;
+      return remote;
     },
   });
 
@@ -399,7 +399,7 @@ export function makeHandledPromise(Promise) {
   function makeForwarder(operation, localImpl) {
     return (o, ...args) => {
       // We are in another turn already, and have the naked object.
-      const fulfilledHandler = presenceToHandler.get(o);
+      const fulfilledHandler = remoteToHandler.get(o);
       if (
         fulfilledHandler &&
         typeof fulfilledHandler[operation] === 'function'

@@ -16,10 +16,10 @@ test('chained properties', async t => {
     };
     data.prop = new HandledPromise(_ => {}, handler);
 
-    pr.p = new HandledPromise((res, rej, resolveWithPresence) => {
+    pr.p = new HandledPromise((res, rej, resolveWithRemote) => {
       pr.res = res;
       pr.rej = rej;
-      pr.resPres = resolveWithPresence;
+      pr.resPres = resolveWithRemote;
     }, handler);
 
     const hp = HandledPromise.applyMethod(
@@ -122,28 +122,28 @@ test('HandledPromise.unwrap', async t => {
       TypeError,
       'rejected HandledPromise throws',
     );
-    let presence;
-    const hp3 = new HandledPromise((_res, _rej, resolveWithPresence) => {
-      presence = resolveWithPresence({});
+    let remote;
+    const hp3 = new HandledPromise((_res, _rej, resolveWithRemote) => {
+      remote = resolveWithRemote({});
     });
-    t.equals(typeof presence, 'object', `typeof presence is object`);
+    t.equals(typeof remote, 'object', `typeof remote is object`);
     t.equals(
       HandledPromise.unwrap(hp3),
-      presence,
-      `unwrapped HandledPromise is presence`,
+      remote,
+      `unwrapped HandledPromise is remote`,
     );
     t.equals(
-      HandledPromise.unwrap(presence),
-      presence,
-      `unwrapped presence is presence`,
+      HandledPromise.unwrap(remote),
+      remote,
+      `unwrapped remote is remote`,
     );
     const hp4 = new HandledPromise(resolve => {
       resolve(hp3);
     });
     t.equals(
       HandledPromise.unwrap(hp4),
-      presence,
-      `unwrapped forwarded HandledPromise is presence`,
+      remote,
+      `unwrapped forwarded HandledPromise is remote`,
     );
   } catch (e) {
     t.isNot(e, e, 'unexpected exception');
