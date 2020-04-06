@@ -1,46 +1,69 @@
-import harden from '@agoric/harden';
+// @ts-check
+import rawHarden from '@agoric/harden';
 import Nat from '@agoric/nat';
 import { isPromise } from '@agoric/produce-promise';
 
+const harden = /** @type {<T>(x: T) => T} */ (rawHarden);
+
 const presenceToInterface = new WeakMap();
 
-// Simple semantics, just tell what interface (or undefined) a presence has.
-export const getInterfaceOf = presence => presenceToInterface.get(presence);
+/**
+ * Simple semantics, just tell what interface (or undefined) a presence has.
+ *
+ * @param {*} maybePresence the value to check
+ * @returns {*} the interface, or undefined if not a Presence
+ */
+export function getInterfaceOf(maybePresence) {
+  return presenceToInterface.get(maybePresence);
+}
 
-// Do a deep copy of the object, handling Proxies and recursion.
-export const deepCopyOfData = harden((obj, already = new WeakMap()) => {
-  if (already.has(obj)) {
-    return already.get(obj);
-  }
-  const objType = typeof obj;
-  switch (objType) {
+/**
+ * Do a deep copy of the object, handling Proxies and recursion.
+ * The resulting copy is guaranteed to be pure data, as well as hardened.
+ * Such a hardened, pure copy cannot be used as a communications path.
+ *
+ * @template T
+ * @param {T} val input value
+ * @returns {T} pure, hardened copy
+ */
+function pureCopy(val, already = new WeakMap()) {
+  const valType = typeof val;
+  switch (valType) {
     case 'string':
     case 'number':
     case 'undefined':
-      return obj;
+      return val;
 
     case 'object': {
+      const obj = /** @type {Object} */ (val);
       if (obj === null) {
         return null;
       }
-      // Make a shallow copy with a new identity.
-      // This takes a snapshot of obj, even if it was a Proxy.
-      const copy = Array.isArray(obj) ? [...obj] : { ...obj };
+
+      if (already.has(obj)) {
+        return already.get(obj);
+      }
+
+      // Create a new identity.
+      const copy = /** @type {T} */ (Array.isArray(obj) ? [] : {});
 
       // Prevent recursion.
       already.set(obj, copy);
 
-      // Turn it into a deep copy.
-      Object.entries(copy).forEach(([i, value]) => {
-        copy[i] = deepCopyOfData(value, already);
+      // Make a deep copy on the new identity.
+      // Object.entries(obj) takes a snapshot (even if a Proxy).
+      Object.entries(obj).forEach(([prop, value]) => {
+        copy[prop] = pureCopy(value, already);
       });
-      return copy;
+      return harden(copy);
     }
 
     default:
-      throw Error(`Object ${objType} is not recognized as data`);
+      throw Error(`Input value ${valType} is not recognized as data`);
   }
-});
+}
+harden(pureCopy);
+export { pureCopy };
 
 // Special property name that indicates an encoding that needs special
 // decoding.
@@ -159,11 +182,14 @@ function isPassByCopyRecord(val) {
   return true;
 }
 
-export function mustPassByPresence(val) {
+/**
+ * Ensure that val could become a legitimate presence.  This is used internally both
+ * in the construction of a new presence and mustPassByPresence.
+ *
+ * @param {*} val The presence candidate to check
+ */
+function assertCanBePresence(val) {
   // throws exception if cannot
-  if (!Object.isFrozen(val)) {
-    throw new Error(`cannot serialize non-frozen objects like ${val}`);
-  }
   if (typeof val !== 'object') {
     throw new Error(`cannot serialize non-objects like ${val}`);
   }
@@ -184,14 +210,24 @@ export function mustPassByPresence(val) {
     }
   });
 
-  if (!getInterfaceOf(val)) {
-    // Don't need the prototype check, since we constructed it specially.
-    const p = Object.getPrototypeOf(val);
-    if (p !== null && p !== Object.prototype) {
-      mustPassByPresence(p);
-    }
-  }
   // ok!
+}
+
+export function mustPassByPresence(val) {
+  if (!Object.isFrozen(val)) {
+    throw new Error(`cannot serialize non-frozen objects like ${val}`);
+  }
+
+  if (getInterfaceOf(val) === undefined) {
+    // Not a registered Presence, so check its contents.
+    assertCanBePresence(val);
+  }
+
+  // It's not a registered Presence, so enforce the prototype check.
+  const p = Object.getPrototypeOf(val);
+  if (p !== null && p !== Object.prototype) {
+    mustPassByPresence(p);
+  }
 }
 
 // This is the equality comparison used by JavaScript's Map and Set
@@ -606,16 +642,20 @@ export function makeMarshal(
   });
 }
 
-// TODO: Document!
-// https://github.com/Agoric/agoric-sdk/issues/804
+/**
+ * Create and register a Presence.  After this, getInterfaceOf(presence)
+ * returns iface.
+ *
+ * // https://github.com/Agoric/agoric-sdk/issues/804
+ *
+ * @param {string} [iface='Presence'] The interface specification for the presence
+ * @param {object} [props={}] Own-properties are copied to the presence
+ * @param {object} [presence={}] The object used as the presence
+ * @returns {object} presence, modified for debuggability
+ */
 export const Presence = harden(
   (iface = 'Presence', props = {}, presence = {}) => {
-    // Ensure that the presence isn't already registered.
-    if (presenceToInterface.has(presence)) {
-      throw Error(`Presence ${presence} is already mapped to an interface`);
-    }
-
-    iface = deepCopyOfData(iface);
+    iface = pureCopy(iface);
     const ifaceType = typeof iface;
 
     // Find the alleged name.
@@ -624,27 +664,48 @@ export const Presence = harden(
         `Interface must be a string, not ${ifaceType}; unimplemented`,
       );
     }
-    const allegedName = iface;
 
-    if (Object.isFrozen(presence)) {
-      throw Error(`Cannot make a frozen object into a Presence`);
+    if (typeof presence !== 'object') {
+      throw Error(
+        `Presence must be an object, not ${typeof presence}; unimplemented`,
+      );
     }
 
+    // Ensure that the presence isn't already registered.
+    if (presenceToInterface.has(presence)) {
+      throw Error(`Presence ${presence} is already mapped to an interface`);
+    }
+
+    // TODO: Get the allegedName a different way.
+    const allegedName = iface;
+
+    /**
+     * @type {PropertyDescriptorMap}
+     */
     const descs = {};
     Object.entries(Object.getOwnPropertyDescriptors(props)).forEach(
       ([prop, desc]) => {
         const propType = typeof prop;
         if (propType !== 'string') {
           throw Error(
-            `Property ${prop} must be a string, not ${propType}; unimplemented`,
+            `Property name ${prop} must be a string, not ${propType}; unimplemented`,
           );
         }
-        descs[prop] = deepCopyOfData(desc);
+        const valType = typeof desc.value;
+        if (valType !== 'function') {
+          throw Error(
+            `Property ${prop} must be a function, not ${valType}; unimplemented`,
+          );
+        }
+        descs[prop] = desc;
       },
     );
 
     // Add the data properties.
     Object.defineProperties(presence, descs);
+
+    // Ensure we're able to become a Presence.
+    assertCanBePresence(presence);
 
     // Set the prototype for debuggability.
     const presenceProto = harden({
@@ -655,11 +716,8 @@ export const Presence = harden(
     });
     Object.setPrototypeOf(presence, presenceProto);
 
-    // We're committed, so do the harden.
+    // We're committed, so keep the interface for future reference.
     harden(presence);
-    harden(iface);
-
-    // Keep the interface for future reference.
     presenceToInterface.set(presence, iface);
     return presence;
   },
