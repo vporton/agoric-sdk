@@ -1,6 +1,6 @@
 // This logic was mostly lifted from @agoric/swingset-vat liveSlots.js
 // Defects in it are mfig's fault.
-import { makeMarshal, QCLASS } from '@agoric/marshal';
+import { Presence, makeMarshal, QCLASS } from '@agoric/marshal';
 import harden from '@agoric/harden';
 import Nat from '@agoric/nat';
 import { HandledPromise, E } from '@agoric/eventual-send';
@@ -95,9 +95,9 @@ export function makeCapTP(ourId, send, bootstrapObj = undefined) {
     };
 
     const pr = {};
-    pr.p = new HandledPromise((res, rej, resolveWithPresence) => {
+    pr.p = new HandledPromise((res, rej, resolveWithRemote) => {
       pr.rej = rej;
-      pr.resPres = () => resolveWithPresence(handler);
+      pr.resRemote = () => resolveWithRemote(handler);
       pr.res = res;
     }, handler);
     return harden(pr);
@@ -111,11 +111,9 @@ export function makeCapTP(ourId, send, bootstrapObj = undefined) {
       // Make a new handled promise for the slot.
       const pr = makeRemote(slot);
       if (slot[0] === 'o') {
-        // A new presence
-        const presence = pr.resPres();
-        presence.toString = () => `[Presence ${ourId} ${slot}]`;
-        harden(presence);
-        val = presence;
+        // A new remote presence
+        const remote = pr.resRemote();
+        val = Presence(`Presence ${ourId} ${slot}`, undefined, remote);
       } else {
         // A new promise
         imports.set(Number(slot.slice(2)), pr);

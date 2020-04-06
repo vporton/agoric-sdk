@@ -1,6 +1,12 @@
 import harden from '@agoric/harden';
 import { E, HandledPromise } from '@agoric/eventual-send';
-import { QCLASS, mustPassByPresence, makeMarshal } from '@agoric/marshal';
+import {
+  QCLASS,
+  Presence,
+  getInterfaceOf,
+  mustPassByPresence,
+  makeMarshal,
+} from '@agoric/marshal';
 import { assert, details } from '@agoric/assert';
 import { isPromise } from '@agoric/produce-promise';
 import { insistVatType, makeVatSlot, parseVatSlot } from '../parseVatSlots';
@@ -44,7 +50,7 @@ function build(syscall, _state, makeRoot, forVatID) {
   // close over 'p-NN'. The unfulfilledHandler is used when applications do
   // E(p).foo() or p~.foo(), aimed at the Promise they receive. This
   // HandledPromise does not ever call the fulfilledHandler, because we never
-  // call `pr.resPres` or the resolveWithPresence function.
+  // call `pr.resRemote` or the resolveWithRemote function.
   //
   // The second time is during notifyFulfillToPresence, when it does
   // convertSlotToVal(o-NN) and that function must handle the `type ==
@@ -69,8 +75,8 @@ function build(syscall, _state, makeRoot, forVatID) {
   //  functions for these two cases. The original makeQueued('p-NN') could be
   //  changed to only set the unfulfilledHandler, and omit `pr.resPres`. The
   //  second would be named makePresence('o-NN'): it would call
-  //  resolveWithPresence() immediately, wouldn't set unfulfilledHandler, and
-  //  would only return the Presence. This might be clearer.
+  //  resolveWithRemote() immediately, wouldn't set unfulfilledHandler, and
+  //  would only return the Remote converted to a Presence. This might be clearer.
 
   function makeQueued(slot) {
     /* eslint-disable no-use-before-define */
@@ -83,9 +89,9 @@ function build(syscall, _state, makeRoot, forVatID) {
     /* eslint-enable no-use-before-define */
 
     const pr = {};
-    pr.p = new HandledPromise((res, rej, resolveWithPresence) => {
+    pr.p = new HandledPromise((res, rej, resolveWithRemote) => {
       pr.rej = rej;
-      pr.resPres = () => resolveWithPresence(handler); // fulfilledHandler
+      pr.resRemote = () => resolveWithRemote(handler); // fulfilledHandler
       pr.res = res;
     }, handler); // unfulfilledHandler
     // We harden this Promise because it feeds importPromise(), which is
@@ -96,9 +102,7 @@ function build(syscall, _state, makeRoot, forVatID) {
   }
 
   function makeDeviceNode(id) {
-    return harden({
-      [`_deviceID_${id}`]() {},
-    });
+    return Presence(`Device ${id}`);
   }
 
   const outstandingProxies = new WeakSet();
@@ -212,10 +216,8 @@ function build(syscall, _state, makeRoot, forVatID) {
         // lsdebug(`assigning new import ${slot}`);
         // prepare a Promise for this Presence, so E(val) can work
         const pr = makeQueued(slot); // TODO find a less confusing name than "pr"
-        const presence = pr.resPres();
-        presence.toString = () => `[Presence ${slot}]`;
-        harden(presence);
-        val = presence;
+        const remote = pr.resRemote();
+        val = Presence(`Presence ${slot}`, undefined, remote);
         // lsdebug(` for presence`, val);
       } else if (type === 'promise') {
         val = importPromise(slot);
@@ -413,7 +415,10 @@ function build(syscall, _state, makeRoot, forVatID) {
   }
 
   // here we finally invoke the vat code, and get back the root object
-  const rootObject = makeRoot(E, D);
+  // We need to pass in Presence and getInterfaceOf so that they can
+  // access our own @agoric/marshal, not a separate instance in a bundle.
+  const vatPowers = { Presence, getInterfaceOf };
+  const rootObject = makeRoot(E, D, vatPowers);
   mustPassByPresence(rootObject);
 
   const rootSlot = makeVatSlot('object', true, 0);
