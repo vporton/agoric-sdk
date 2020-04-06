@@ -187,12 +187,12 @@ test('Presence/getInterfaceOf', t => {
   );
   t.throws(
     () => Presence('MyHandle', { foo: 123 }),
-    /unimplemented/,
+    /cannot serialize/,
     'non-function props are not implemented',
   );
   t.throws(
     () => Presence('MyHandle', {}, a => a + 1),
-    /unimplemented/,
+    /cannot serialize/,
     'function presences are not implemented',
   );
 

@@ -653,72 +653,71 @@ export function makeMarshal(
  * @param {object} [presence={}] The object used as the presence
  * @returns {object} presence, modified for debuggability
  */
-export const Presence = harden(
-  (iface = 'Presence', props = {}, presence = {}) => {
-    iface = pureCopy(iface);
-    const ifaceType = typeof iface;
+function Presence(iface = 'Presence', props = {}, presence = {}) {
+  iface = pureCopy(iface);
+  const ifaceType = typeof iface;
 
-    // Find the alleged name.
-    if (ifaceType !== 'string') {
-      throw Error(
-        `Interface must be a string, not ${ifaceType}; unimplemented`,
-      );
-    }
+  // Find the alleged name.
+  if (ifaceType !== 'string') {
+    throw Error(`Interface must be a string, not ${ifaceType}; unimplemented`);
+  }
 
-    if (typeof presence !== 'object') {
-      throw Error(
-        `Presence must be an object, not ${typeof presence}; unimplemented`,
-      );
-    }
+  // Fail fast: check that the unmodified object is able to become a Presence.
+  assertCanBePresence(presence);
 
-    // Ensure that the presence isn't already registered.
-    if (presenceToInterface.has(presence)) {
-      throw Error(`Presence ${presence} is already mapped to an interface`);
-    }
+  // Ensure that the presence isn't already registered.
+  if (presenceToInterface.has(presence)) {
+    throw Error(`Presence ${presence} is already mapped to an interface`);
+  }
 
-    // TODO: Get the allegedName a different way.
-    const allegedName = iface;
+  // TODO: Get the allegedName a different way.
+  const allegedName = iface;
 
-    /**
-     * @type {PropertyDescriptorMap}
-     */
-    const descs = {};
-    Object.entries(Object.getOwnPropertyDescriptors(props)).forEach(
-      ([prop, desc]) => {
-        const propType = typeof prop;
-        if (propType !== 'string') {
-          throw Error(
-            `Property name ${prop} must be a string, not ${propType}; unimplemented`,
-          );
-        }
-        const valType = typeof desc.value;
-        if (valType !== 'function') {
-          throw Error(
-            `Property ${prop} must be a function, not ${valType}; unimplemented`,
-          );
-        }
-        descs[prop] = desc;
+  // A prototype for debuggability.
+  const oldPresenceProto = Object.getPrototypeOf(presence);
+
+  // Fail fast: check the old proto against our rules.
+  mustPassByPresence(harden(Object.create(oldPresenceProto)));
+
+  const presenceProto = harden(
+    Object.create(oldPresenceProto, {
+      toString: {
+        value: function toString() {
+          return `[${allegedName}]`;
+        },
       },
-    );
+      [Symbol.toStringTag]: {
+        value: allegedName,
+      },
+    }),
+  );
 
-    // Add the data properties.
-    Object.defineProperties(presence, descs);
-
-    // Ensure we're able to become a Presence.
-    assertCanBePresence(presence);
+  // Take a static copy of the properties.
+  const propEntries = Object.entries(props);
+  const finishAndCheck = target => {
+    // Add the snapshotted properties.
+    propEntries.forEach(([prop, value]) => (target[prop] = value));
 
     // Set the prototype for debuggability.
-    const presenceProto = harden({
-      toString() {
-        return `[${allegedName}]`;
-      },
-      [Symbol.toStringTag]: allegedName,
-    });
-    Object.setPrototypeOf(presence, presenceProto);
+    Object.setPrototypeOf(target, presenceProto);
 
-    // We're committed, so keep the interface for future reference.
-    harden(presence);
-    presenceToInterface.set(presence, iface);
-    return presence;
-  },
-);
+    harden(target);
+    assertCanBePresence(target);
+    return target;
+  };
+
+  // Fail fast: create and check a fresh presence.
+  finishAndCheck(Object.create(oldPresenceProto));
+
+  // Actually finish the presence.
+  finishAndCheck(presence);
+
+  // COMMITTED!
+  // We're committed, so keep the interface for future reference.
+  harden(presence);
+  presenceToInterface.set(presence, iface);
+  return presence;
+}
+
+harden(Presence);
+export { Presence };
