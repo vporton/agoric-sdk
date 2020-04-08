@@ -163,6 +163,7 @@ export default function makeVatManager(
     kdebug(
       `syscall[${vatID}].fulfillToPresence(${promiseID} / ${kpid}) = ${slot} / ${targetSlot})`,
     );
+    vatKeeper.deleteCListEntry(kpid, promiseID);
     syscallManager.fulfillToPresence(vatID, kpid, targetSlot);
   }
 
@@ -177,6 +178,7 @@ export default function makeVatManager(
         data.body
       } ${JSON.stringify(data.slots)}/${JSON.stringify(kernelSlots)}`,
     );
+    vatKeeper.deleteCListEntry(kpid, promiseID);
     syscallManager.fulfillToData(vatID, kpid, kernelData);
   }
 
@@ -191,6 +193,7 @@ export default function makeVatManager(
         data.body
       } ${JSON.stringify(data.slots)}/${JSON.stringify(kernelSlots)}`,
     );
+    vatKeeper.deleteCListEntry(kpid, promiseID);
     syscallManager.reject(vatID, kpid, kernelData);
   }
 

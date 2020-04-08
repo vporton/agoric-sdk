@@ -338,6 +338,14 @@ function build(syscall, _state, makeRoot, forVatID) {
     return p;
   }
 
+  function retirePromiseID(promiseID) {
+    lsdebug(`Retiring ${forVatID}:${promiseID}`);
+    importedPromisesByPromiseID.delete(promiseID);
+    const p = slotToVal.get(promiseID);
+    valToSlot.delete(p);
+    slotToVal.delete(promiseID);
+  }
+
   function thenResolve(promiseID) {
     insistVatType('promise', promiseID);
     return res => {
@@ -350,6 +358,9 @@ function build(syscall, _state, makeRoot, forVatID) {
       lsdebug(` ser ${ser.body} ${JSON.stringify(ser.slots)}`);
       // find out what resolution category we're using
       const unser = JSON.parse(ser.body);
+      if (importedPromisesByPromiseID.has(promiseID)) {
+        importedPromisesByPromiseID.get(promiseID).res(res);
+      }
       if (
         Object(unser) === unser &&
         QCLASS in unser &&
@@ -359,6 +370,7 @@ function build(syscall, _state, makeRoot, forVatID) {
         const { type } = parseVatSlot(slot);
         if (type === 'object') {
           syscall.fulfillToPresence(promiseID, slot);
+          retirePromiseID(promiseID);
         } else {
           throw new Error(`thenResolve to non-object slot ${slot}`);
         }
@@ -366,6 +378,7 @@ function build(syscall, _state, makeRoot, forVatID) {
         // if it resolves to data, .thens fire but kernel-queued messages are
         // rejected, because you can't send messages to data
         syscall.fulfillToData(promiseID, ser);
+        retirePromiseID(promiseID);
       }
     };
   }
@@ -375,16 +388,12 @@ function build(syscall, _state, makeRoot, forVatID) {
       harden(rej);
       lsdebug(`ls thenReject fired`, rej);
       const ser = m.serialize(rej);
+      if (importedPromisesByPromiseID.has(promiseID)) {
+        importedPromisesByPromiseID.get(promiseID).rej(rej);
+      }
       syscall.reject(promiseID, ser);
+      retirePromiseID(promiseID);
     };
-  }
-
-  function retirePromiseID(promiseID) {
-    lsdebug(`Retiring ${forVatID}:${promiseID}`);
-    importedPromisesByPromiseID.delete(promiseID);
-    const p = slotToVal.get(promiseID);
-    valToSlot.delete(p);
-    slotToVal.delete(promiseID);
   }
 
   function notifyFulfillToData(promiseID, data) {
