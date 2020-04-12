@@ -23,29 +23,34 @@ export function getInterfaceOf(maybePresence) {
  * Such a hardened, pure copy cannot be used as a communications path.
  *
  * @template T
- * @param {T} val input value
+ * @param {T} val input value.  NOTE: Will become hardened!
  * @returns {T} pure, hardened copy
  */
 function pureCopy(val, already = new WeakMap()) {
-  const valType = typeof val;
-  switch (valType) {
+  // We need to harden to comply with passStyleOf's algorithm.
+  // FIXME: Can we suspend this requirement so we don't mutate
+  // the input value, only the copy we create?
+  harden(val);
+
+  // eslint-disable-next-line no-use-before-define
+  const passStyle = passStyleOf(val);
+  switch (passStyle) {
     case 'string':
     case 'number':
     case 'undefined':
+    case 'null':
+    case 'bigint':
       return val;
 
-    case 'object': {
+    case 'copyArray':
+    case 'copyRecord': {
       const obj = /** @type {Object} */ (val);
-      if (obj === null) {
-        return null;
-      }
-
       if (already.has(obj)) {
         return already.get(obj);
       }
 
       // Create a new identity.
-      const copy = /** @type {T} */ (Array.isArray(obj) ? [] : {});
+      const copy = /** @type {T} */ (passStyle === 'copyArray' ? [] : {});
 
       // Prevent recursion.
       already.set(obj, copy);
@@ -59,7 +64,7 @@ function pureCopy(val, already = new WeakMap()) {
     }
 
     default:
-      throw Error(`Input value ${valType} is not recognized as data`);
+      throw Error(`Input value ${passStyle} is not recognized as data`);
   }
 }
 harden(pureCopy);
@@ -676,15 +681,16 @@ function Presence(iface = 'Presence', props = {}, presence = {}) {
   // A prototype for debuggability.
   const oldPresenceProto = Object.getPrototypeOf(presence);
 
-  // Fail fast: check the old proto against our rules.
+  // Fail fast: create a fresh empty object with the old
+  // prototype in order to check it against our rules.
   mustPassByPresence(harden(Object.create(oldPresenceProto)));
 
+  // Assign the arrow function to a variable to set its .name.
+  const toString = () => `[${allegedName}]`;
   const presenceProto = harden(
     Object.create(oldPresenceProto, {
       toString: {
-        value: function toString() {
-          return `[${allegedName}]`;
-        },
+        value: toString,
       },
       [Symbol.toStringTag]: {
         value: allegedName,
@@ -694,7 +700,7 @@ function Presence(iface = 'Presence', props = {}, presence = {}) {
 
   // Take a static copy of the properties.
   const propEntries = Object.entries(props);
-  const finishAndCheck = target => {
+  const mutateHardenAndCheck = target => {
     // Add the snapshotted properties.
     propEntries.forEach(([prop, value]) => (target[prop] = value));
 
@@ -706,15 +712,14 @@ function Presence(iface = 'Presence', props = {}, presence = {}) {
     return target;
   };
 
-  // Fail fast: create and check a fresh presence.
-  finishAndCheck(Object.create(oldPresenceProto));
+  // Fail fast: check a fresh presence to see if our rules fit.
+  mutateHardenAndCheck(Object.create(oldPresenceProto));
 
-  // Actually finish the presence.
-  finishAndCheck(presence);
+  // Actually finish the new presence.
+  mutateHardenAndCheck(presence);
 
   // COMMITTED!
   // We're committed, so keep the interface for future reference.
-  harden(presence);
   presenceToInterface.set(presence, iface);
   return presence;
 }
