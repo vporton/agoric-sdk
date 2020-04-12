@@ -122,13 +122,13 @@ export function makeHandledPromise(Promise) {
     let handledResolve;
     let handledReject;
     let resolved = false;
-    let resolvedTarget = null;
+    let resolvedRemote = null;
     let handledP;
     let continueForwarding = () => {};
     const superExecutor = (superResolve, superReject) => {
       handledResolve = value => {
         if (resolved) {
-          return resolvedTarget;
+          return resolvedRemote;
         }
         if (forwardedPromiseToPromise.has(handledP)) {
           throw new TypeError('internal: already forwarded');
@@ -163,11 +163,11 @@ export function makeHandledPromise(Promise) {
         // Finish the resolution.
         superResolve(value);
         resolved = true;
-        resolvedTarget = value;
+        resolvedRemote = value;
 
         // We're resolved, so forward any postponed operations to us.
         continueForwarding();
-        return resolvedTarget;
+        return resolvedRemote;
       };
       handledReject = err => {
         if (resolved) {
@@ -245,7 +245,7 @@ export function makeHandledPromise(Promise) {
 
     const resolveWithRemote = remoteHandler => {
       if (resolved) {
-        return resolvedTarget;
+        return resolvedRemote;
       }
       if (forwardedPromiseToPromise.has(handledP)) {
         throw new TypeError('internal: already forwarded');
@@ -259,13 +259,13 @@ export function makeHandledPromise(Promise) {
 
         // Create table entries for the remote mapped to the
         // fulfilledHandler.
-        remoteToPromise.set(resolvedTarget, handledP);
-        promiseToRemote.set(handledP, resolvedTarget);
-        remoteToHandler.set(resolvedTarget, remoteHandler);
+        remoteToPromise.set(resolvedRemote, handledP);
+        promiseToRemote.set(handledP, resolvedRemote);
+        remoteToHandler.set(resolvedRemote, remoteHandler);
 
         // We committed to this remote, so resolve.
-        handledResolve(resolvedTarget);
-        return resolvedTarget;
+        handledResolve(resolvedRemote);
+        return resolvedRemote;
       } catch (e) {
         handledReject(e);
         throw e;
