@@ -168,6 +168,7 @@ async function doVatResolveCase1(t, mode) {
   const expectedP1 = 'p+5';
   const expectedP2 = 'p+6';
   const expectedP3 = 'p+7';
+  const expectedP4 = 'p+8';
   const target2 = 'o+1';
 
   dispatch.deliver(rootA, 'run', capargs([slot0arg], [target1]));
@@ -193,10 +194,11 @@ async function doVatResolveCase1(t, mode) {
     type: 'send',
     targetSlot: target1,
     method: 'two',
-    args: capargs([slot0arg], [expectedP1]),
-    resultSlot: expectedP3,
+    args: capargs([slot0arg], [expectedP3]),
+    resultSlot: expectedP4,
   });
-  t.deepEqual(log.shift(), { type: 'subscribe', target: expectedP3 });
+  t.deepEqual(log.shift(), { type: 'subscribe', target: expectedP4 });
+  t.deepEqual(log.shift(), resolutionOf(expectedP3, mode, target2));
   t.deepEqual(log, []);
 
   t.end();
@@ -256,6 +258,7 @@ async function doVatResolveCase23(t, which, mode) {
   const expectedP3 = 'p+6';
   const expectedP4 = 'p+7';
   const expectedP5 = 'p+8';
+  const expectedP6 = 'p+9';
   const target2 = 'o+1';
 
   if (which === 2) {
@@ -300,52 +303,24 @@ async function doVatResolveCase23(t, which, mode) {
   // now it sends three() with the promise. For now, we expect the same vpid
   // as before.
 
-  // TODO: when we start to retire vpids, we expect to see vat-allocated
-  // 'p+7' (i.e. expectedP4) to be provided in args[], which will increment
-  // all the subsequent vat-allocated vpids:
-  //  * the resultSlot of three() will change to expectedP5
-  //  * the resultSlot of four() will change to expectedP6
-  //  * both subscriptions will change to match
-
   t.deepEqual(log.shift(), {
     type: 'send',
     targetSlot: target1,
     method: 'three',
-    args: capargs([slot0arg], [p1]), // this vpid will change
-    resultSlot: expectedP4,
+    args: capargs([slot0arg], [expectedP4]),
+    resultSlot: expectedP5,
   });
-  t.deepEqual(log.shift(), { type: 'subscribe', target: expectedP4 });
+  t.deepEqual(log.shift(), { type: 'subscribe', target: expectedP5 });
 
-  // TODO: when #823 lands, set this to false, and remove the dead code
-  const bug823broken = true;
-
-  if (bug823broken) {
-    // if #823 is still broken, we'll see a pipelined call to p1,
-    // unaware of how p1 was resolved
-    t.deepEqual(log.shift(), {
-      type: 'send',
-      targetSlot: p1,
-      method: 'four',
-      args: capargs([], []),
-      resultSlot: expectedP5,
-    });
-    t.deepEqual(log.shift(), { type: 'subscribe', target: expectedP5 });
-  } else {
-    // now, if we resolved p1 to a presence, the vat can send four() to it
-    // eslint-disable-next-line no-lonely-if
-    if (mode === 'presence') {
-      t.deepEqual(log.shift(), {
-        type: 'send',
-        targetSlot: target2,
-        method: 'four',
-        args: capargs([], []),
-        resultSlot: expectedP5,
-      });
-      t.deepEqual(log.shift(), { type: 'subscribe', target: expectedP5 });
-    }
-    // but if we resolved p1 to data or rejected it, four() is not sent
-    // (the vat creates an error for it locally)
-  }
+  t.deepEqual(log.shift(), {
+    type: 'send',
+    targetSlot: p1,
+    method: 'four',
+    args: capargs([], []),
+    resultSlot: expectedP6,
+  });
+  t.deepEqual(log.shift(), { type: 'subscribe', target: expectedP6 });
+  t.deepEqual(log.shift(), resolutionOf(expectedP4, mode, target2));
 
   // that should be the last of the syscalls
   t.deepEqual(log, []);
@@ -460,29 +435,28 @@ async function doVatResolveCase4(t, mode) {
   await endOfCrank();
 
   const expectedP4 = nextP();
+  const expectedP5 = nextP();
   t.deepEqual(log.shift(), {
     type: 'send',
     targetSlot: target1,
     method: 'three',
-    args: capargs([slot0arg], [p1]),
-    resultSlot: expectedP4,
+    args: capargs([slot0arg], [expectedP4]),
+    resultSlot: expectedP5,
   });
-  t.deepEqual(log.shift(), { type: 'subscribe', target: expectedP4 });
+  t.deepEqual(log.shift(), { type: 'subscribe', target: expectedP5 });
 
   if (mode === 'presence') {
-    // this message seems to get sent to target2 even though #823 isn't fixed
-    // yet, I don't know why
-    const expectedP5 = nextP();
+    const expectedP6 = nextP();
     t.deepEqual(log.shift(), {
       type: 'send',
-      targetSlot: target2, // this depends on #823 being fixed
+      targetSlot: target2,
       method: 'four',
       args: capargs([], []),
-      resultSlot: expectedP5,
+      resultSlot: expectedP6,
     });
-    t.deepEqual(log.shift(), { type: 'subscribe', target: expectedP5 });
+    t.deepEqual(log.shift(), { type: 'subscribe', target: expectedP6 });
   }
-  // if p1 rejects or resolves to data, the kernel never hears about four()
+  t.deepEqual(log.shift(), resolutionOf(expectedP4, mode, target2));
   t.deepEqual(log, []);
 
   t.end();
@@ -496,9 +470,7 @@ test('liveslots vpid handling case4 data', async t => {
   await doVatResolveCase4(t, 'data');
 });
 
-// broken due to #823, the four() method is pipelined to p1, when it should
-// be delivered and rejected within the vat
-test.skip('liveslots vpid handling case4 reject', async t => {
+test('liveslots vpid handling case4 reject', async t => {
   await doVatResolveCase4(t, 'reject');
 });
 
