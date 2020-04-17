@@ -48,6 +48,7 @@ export const makeContract = harden(zcf => {
     rejectIfNotProposal,
     assertKeywords,
     getKeys,
+    inviteAnOffer,
   } = makeZoeHelpers(zcf);
 
   // There must be one keyword at the start, which is equal to the
@@ -223,7 +224,8 @@ export const makeContract = harden(zcf => {
   };
 
   const addLiquidityHook = offerHandle => {
-    // Get the brand of the secondary token so we can identify the liquidity pool.
+    // Get the brand of the secondary token so we can identify the liquidity
+    // pool.
     const secondaryTokenBrand = getSecondaryBrand(
       harden({
         offerHandle,
@@ -283,7 +285,9 @@ export const makeContract = harden(zcf => {
     let tempLiqHandle;
 
     const tempLiqOfferHook = tmpHandle => (tempLiqHandle = tmpHandle);
-    const tempLiqInvite = zcf.makeInvitation(tempLiqOfferHook);
+    const tempLiqInvite = inviteAnOffer({
+      offerHook: tempLiqOfferHook,
+    });
     const zoeService = zcf.getZoeService();
     // We update the liquidityTokenSupply before the next turn
     liquidityTable.update(secondaryTokenBrand, {
@@ -424,7 +428,8 @@ export const makeContract = harden(zcf => {
     });
     rejectIfNotProposal(offerHandle, expected);
 
-    // we could be swapping (1) central to secondary, (2) secondary to central, or (3) secondary to secondary.
+    // we could be swapping (1) central to secondary, (2) secondary to central,
+    // or(3) secondary to secondary.
 
     // 1) central to secondary
     if (brandIn === centralTokenBrand) {
@@ -524,8 +529,11 @@ export const makeContract = harden(zcf => {
   };
 
   const makeAddLiquidityInvite = () =>
-    zcf.makeInvitation(addLiquidityHook, {
-      inviteDesc: 'multipool autoswap add liquidity',
+    inviteAnOffer({
+      offerHook: addLiquidityHook,
+      customProperties: {
+        inviteDesc: 'multipool autoswap add liquidity',
+      },
     });
 
   return harden({
@@ -620,13 +628,19 @@ export const makeContract = harden(zcf => {
         }
       },
       makeSwapInvite: () =>
-        zcf.makeInvitation(swapHook, {
-          inviteDesc: 'autoswap swap',
+        inviteAnOffer({
+          offerHook: swapHook,
+          customProperties: {
+            inviteDesc: 'autoswap swap',
+          },
         }),
       makeAddLiquidityInvite,
       makeRemoveLiquidityInvite: () =>
-        zcf.makeInvitation(removeLiquidityHook, {
-          inviteDesc: 'autoswap remove liquidity',
+        inviteAnOffer({
+          offerHook: removeLiquidityHook,
+          customProperties: {
+            inviteDesc: 'autoswap remove liquidity',
+          },
         }),
     },
   });
