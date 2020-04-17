@@ -47,7 +47,7 @@ export const makeContract = harden(zcf => {
 
   return zcf.addNewIssuer(issuer, 'Ticket').then(() => {
     // create Zoe helpers after zcf.addNewIssuer because of
-    https://github.com/Agoric/agoric-sdk/issues/802
+    // https://github.com/Agoric/agoric-sdk/issues/802
     const { rejectOffer, inviteAnOffer } = makeZoeHelpers(zcf);
 
     // Mint tickets inside the contract
