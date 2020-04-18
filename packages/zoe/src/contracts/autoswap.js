@@ -183,9 +183,7 @@ export const makeContract = harden(zcf => {
 
         const tempLiqInvite = inviteAnOffer({
           offerHook: injectLiquidityHook,
-          customProperties: {
-            inviteDesc: 'autoSwap internal',
-          },
+          inviteDesc: 'autoSwap internal',
           expected: {
             give: { Liquidity: null },
           },
@@ -260,9 +258,7 @@ export const makeContract = harden(zcf => {
       const makeAddLiquidityInvite = () =>
         inviteAnOffer({
           offerHook: addLiquidityHook,
-          customProperties: {
-            inviteDesc: 'autoswap add liquidity',
-          },
+          inviteDesc: 'autoswap add liquidity',
           expected: {
             give: { TokenA: null, TokenB: null },
             want: { Liquidity: null },
@@ -311,17 +307,13 @@ export const makeContract = harden(zcf => {
           makeSwapInvite: () =>
             inviteAnOffer({
               offerHook: swapHook,
-              customProperties: {
-                inviteDesc: 'autoswap swap',
-              },
+              inviteDesc: 'autoswap swap',
             }),
           makeAddLiquidityInvite,
           makeRemoveLiquidityInvite: () =>
             inviteAnOffer({
               offerHook: removeLiquidityHook,
-              customProperties: {
-                inviteDesc: 'autoswap remove liquidity',
-              },
+              inviteDesc: 'autoswap remove liquidity',
               expected: {
                 want: { TokenA: null, TokenB: null },
                 give: { Liquidity: null },

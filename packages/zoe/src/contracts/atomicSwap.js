@@ -14,10 +14,10 @@ export const makeContract = harden(zcf => {
     } = zcf.getOffer(firstOfferHandle);
     return inviteAnOffer({
       offerHook: offerHandle => swap(firstOfferHandle, offerHandle),
+      inviteDesc: 'matchOffer',
       customProperties: {
         asset: give.Asset,
         price: want.Price,
-        inviteDesc: 'matchOffer',
       },
     });
   };
@@ -25,9 +25,7 @@ export const makeContract = harden(zcf => {
   const makeFirstOfferInvite = () =>
     inviteAnOffer({
       offerHook: makeMatchingInvite,
-      customProperties: {
-        inviteDesc: 'firstOffer',
-      },
+      inviteDesc: 'firstOffer',
       expected: {
         give: { Asset: null },
         want: { Price: null },

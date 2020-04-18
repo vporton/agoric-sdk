@@ -287,9 +287,7 @@ export const makeContract = harden(zcf => {
     const tempLiqOfferHook = tmpHandle => (tempLiqHandle = tmpHandle);
     const tempLiqInvite = inviteAnOffer({
       offerHook: tempLiqOfferHook,
-      customProperties: {
-        inviteDesc: 'temporary liquidity offer',
-      },
+      inviteDesc: 'temporary liquidity offer',
     });
     const zoeService = zcf.getZoeService();
     // We update the liquidityTokenSupply before the next turn
@@ -534,9 +532,7 @@ export const makeContract = harden(zcf => {
   const makeAddLiquidityInvite = () =>
     inviteAnOffer({
       offerHook: addLiquidityHook,
-      customProperties: {
-        inviteDesc: 'multipool autoswap add liquidity',
-      },
+      inviteDesc: 'multipool autoswap add liquidity',
     });
 
   return harden({
@@ -633,17 +629,13 @@ export const makeContract = harden(zcf => {
       makeSwapInvite: () =>
         inviteAnOffer({
           offerHook: swapHook,
-          customProperties: {
-            inviteDesc: 'autoswap swap',
-          },
+          inviteDesc: 'autoswap swap',
         }),
       makeAddLiquidityInvite,
       makeRemoveLiquidityInvite: () =>
         inviteAnOffer({
           offerHook: removeLiquidityHook,
-          customProperties: {
-            inviteDesc: 'autoswap remove liquidity',
-          },
+          inviteDesc: 'autoswap remove liquidity',
         }),
     },
   });

@@ -1,7 +1,7 @@
 import harden from '@agoric/harden';
 
 export const makeContract = zoe => {
-  const invite = zoe.makeInvitation(() => {}, {
+  const invite = zoe.makeInvitation({
     inviteDesc: 'tester',
   });
   return harden({

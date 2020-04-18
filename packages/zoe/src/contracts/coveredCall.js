@@ -31,8 +31,8 @@ export const makeContract = harden(zcf => {
     } = zcf.getOffer(sellerHandle);
     return inviteAnOffer({
       offerHook: offerHandle => swap(sellerHandle, offerHandle, rejectMsg),
+      inviteDesc: 'exerciseOption',
       customProperties: {
-        inviteDesc: 'exerciseOption',
         expirationDate: exit.afterDeadline.deadline,
         timerAuthority: exit.afterDeadline.timer,
         underlyingAsset: give.UnderlyingAsset,
@@ -48,9 +48,7 @@ export const makeContract = harden(zcf => {
   const makeCoveredCallInvite = () =>
     inviteAnOffer({
       offerHook: makeCallOptionInvite,
-      customProperties: {
-        inviteDesc: 'makeCallOption',
-      },
+      inviteDesc: 'makeCallOption',
       expected: {
         give: { UnderlyingAsset: null },
         want: { StrikePrice: null },

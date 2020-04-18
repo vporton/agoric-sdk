@@ -160,11 +160,12 @@ export const makeZoeHelpers = zcf => {
      * If "offerHook" is provided, it will be called when the invitation is exercised
      * and an offer is submitted. The callback will get a reference to the offer.
      *
-     * @param {InviteAnOfferOptions} [options={}]
+     * @param {InviteAnOfferOptions} options
      * @returns {Invite}
      *
      * @typedef InviteAnOfferOptions
      * @param {OfferHook} [offerHook]
+     * @param {string} inviteDesc
      * @param {CustomProperties} [customProperties]
      * @param {ExpectedRecord} [expected]
      *
@@ -174,19 +175,23 @@ export const makeZoeHelpers = zcf => {
      * @property {TODO} [exit]
      *
      */
-    inviteAnOffer: (options = {}) => {
-      const {
-        offerHook = () => {},
-        customProperties = undefined,
-        expected = undefined,
-      } = options;
+    inviteAnOffer: ({
+      offerHook = () => {},
+      inviteDesc,
+      customProperties = undefined,
+      expected = undefined,
+    }) => {
       const wrappedOfferHook = offerHandle => {
         if (expected) {
           helpers.rejectIfNotProposal(offerHandle, expected);
         }
         return offerHook(offerHandle);
       };
-      return zcf.makeInvitation(wrappedOfferHook, customProperties);
+      return zcf.makeInvitation({
+        offerHook: wrappedOfferHook,
+        inviteDesc,
+        customProperties,
+      });
     },
     /**
      * Return a Promise for an OfferHandle.
@@ -203,9 +208,7 @@ export const makeZoeHelpers = zcf => {
       new HandledPromise(resolve => {
         const invite = helpers.inviteAnOffer({
           offerHook: offerHandle => resolve(offerHandle),
-          customProperties: {
-            inviteDesc: 'empty offer',
-          },
+          inviteDesc: 'empty offer',
         });
         zoeService.offer(invite);
       }),

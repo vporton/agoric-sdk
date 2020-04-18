@@ -227,13 +227,13 @@ import { makeTables } from './state';
  * queries based on other information, we choose to omit it. For
  * instance, `installationHandle` can be derived from
  * `instanceHandle` and is omitted even though it is useful.
- * @param  {OfferHook} offerHook - a function that will be handed the
- * offerHandle at the right time, and returns a contract-specific
- * OfferOutcome which will be put in the OfferResultRecord.
- * @param  {CustomProperties} customProperties - an object of
- * information to include in the extent, as defined by the smart
- * contract
+ * @param {MakeInvitationOptions} options
  * @returns {Invite}
+ *
+ * @typedef MakeInvitationOptions
+ * @param {OfferHook} [offerHook]
+ * @param {string} inviteDesc
+ * @param {CustomProperties} [customProperties]
  *
  * @callback OfferHook
  * This function will be called with the OfferHandle when the offer
@@ -360,32 +360,6 @@ const makeZoe = (additionalEndowments = {}) => {
    * @returns {ContractFacet} The returned facet
    */
   const makeContractFacet = instanceHandle => {
-    // Make a Zoe invite payment with an extent that is a mix of credible
-    // information from Zoe (the `handle` and `instanceHandle`) and
-    // other information defined by the smart contract. Note that the
-    // smart contract cannot override or change the values of `handle`
-    // and `instanceHandle`.
-    const makeInvitation = (offerHook, customProperties) => {
-      assert(customProperties, details`HAZARD no customProperties`);
-      assert.typeof(
-        customProperties.inviteDesc,
-        'string',
-        details`HAZARD no customProperties.inviteDesc`,
-      );
-      const inviteHandle = harden({});
-      const inviteAmount = inviteAmountMath.make(
-        harden([
-          {
-            ...customProperties,
-            handle: inviteHandle,
-            instanceHandle,
-          },
-        ]),
-      );
-      inviteHandleToOfferHook.init(inviteHandle, offerHook);
-      return inviteMint.mintPayment(inviteAmount);
-    };
-
     /**
      * @type {ContractFacet}
      */
@@ -449,7 +423,35 @@ const makeZoe = (additionalEndowments = {}) => {
         return completeOffers(instanceHandle, offerHandles);
       },
 
-      makeInvitation,
+      // Make a Zoe invite payment with an extent that is a mix of credible
+      // information from Zoe (the `handle` and `instanceHandle`) and
+      // other information defined by the smart contract. Note that the
+      // smart contract cannot override or change the values of `handle`
+      // and `instanceHandle`.
+      makeInvitation: ({
+        offerHook = () => {},
+        inviteDesc,
+        customProperties = harden({}),
+      }) => {
+        assert.typeof(
+          inviteDesc,
+          'string',
+          details`expected an inviteDesc string`,
+        );
+        const inviteHandle = harden({});
+        const inviteAmount = inviteAmountMath.make(
+          harden([
+            {
+              ...customProperties,
+              inviteDesc,
+              handle: inviteHandle,
+              instanceHandle,
+            },
+          ]),
+        );
+        inviteHandleToOfferHook.init(inviteHandle, offerHook);
+        return inviteMint.mintPayment(inviteAmount);
+      },
 
       addNewIssuer: (issuerP, keyword) =>
         issuerTable.getPromiseForIssuerRecord(issuerP).then(issuerRecord => {

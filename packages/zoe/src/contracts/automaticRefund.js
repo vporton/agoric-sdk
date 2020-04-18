@@ -26,9 +26,7 @@ export const makeContract = harden(zcf => {
   const makeRefundInvite = () =>
     inviteAnOffer({
       offerHook: refundOfferHook,
-      customProperties: {
-        inviteDesc: 'getRefund',
-      },
+      inviteDesc: 'getRefund',
     });
 
   return harden({

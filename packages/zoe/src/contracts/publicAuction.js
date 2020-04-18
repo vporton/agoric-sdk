@@ -59,8 +59,8 @@ export const makeContract = harden(zcf => {
   const makeBidderInvite = () => {
     return inviteAnOffer({
       offerHook: bidderOfferHook,
+      inviteDesc: 'bid',
       customProperties: {
-        inviteDesc: 'bid',
         auctionedAssets,
         minimumBid,
       },
@@ -86,9 +86,7 @@ export const makeContract = harden(zcf => {
   const makeSellerInvite = () => {
     return inviteAnOffer({
       offerHook: sellerOfferHook,
-      customProperties: {
-        inviteDesc: 'sellAssets',
-      },
+      inviteDesc: 'sellAssets',
       expected: {
         give: { Asset: null },
         want: { Bid: null },
