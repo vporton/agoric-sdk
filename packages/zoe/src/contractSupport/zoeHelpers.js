@@ -203,6 +203,9 @@ export const makeZoeHelpers = zcf => {
       new HandledPromise(resolve => {
         const invite = helpers.inviteAnOffer({
           offerHook: offerHandle => resolve(offerHandle),
+          customProperties: {
+            inviteDesc: 'empty offer',
+          },
         });
         zoeService.offer(invite);
       }),
