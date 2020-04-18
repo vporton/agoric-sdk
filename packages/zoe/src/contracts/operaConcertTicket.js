@@ -87,7 +87,7 @@ export const makeContract = harden(zcf => {
       customProperties: {
         inviteDesc: 'contract self invite',
       },
-//      expected: { give: { Tickets: null } },
+      expected: { give: { Ticket: null } },
     });
     // the contract creates an offer {give: tickets, want: nothing} with the
     // tickets
@@ -187,12 +187,10 @@ export const makeContract = harden(zcf => {
                 customProperties: {
                   inviteDesc: 'buy ticket',
                 },
-                /*
                 expected: {
-                  want: { Tickets: null },
+                  want: { Ticket: null },
                   give: { Money: null },
                 },
-                */
               }),
             getTicketIssuer: () => issuer,
             getAvailableTickets() {
