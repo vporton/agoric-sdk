@@ -84,6 +84,10 @@ export const makeContract = harden(zcf => {
 
     const contractSelfInvite = inviteAnOffer({
       offerHook: internalTicketSupplyOfferHook,
+      customProperties: {
+        inviteDesc: 'contract self invite',
+      },
+//      expected: { give: { Tickets: null } },
     });
     // the contract creates an offer {give: tickets, want: nothing} with the
     // tickets
@@ -172,11 +176,23 @@ export const makeContract = harden(zcf => {
         return harden({
           invite: inviteAnOffer({
             offerHook: auditoriumOfferHook,
+            customProperties: {
+              inviteDesc: 'auditorium',
+            },
           }),
           publicAPI: {
             makeBuyerInvite: () =>
               inviteAnOffer({
                 offerHook: buyTicketOfferHook,
+                customProperties: {
+                  inviteDesc: 'buy ticket',
+                },
+                /*
+                expected: {
+                  want: { Tickets: null },
+                  give: { Money: null },
+                },
+                */
               }),
             getTicketIssuer: () => issuer,
             getAvailableTickets() {

@@ -287,6 +287,9 @@ export const makeContract = harden(zcf => {
     const tempLiqOfferHook = tmpHandle => (tempLiqHandle = tmpHandle);
     const tempLiqInvite = inviteAnOffer({
       offerHook: tempLiqOfferHook,
+      customProperties: {
+        inviteDesc: 'temporary liquidity offer',
+      },
     });
     const zoeService = zcf.getZoeService();
     // We update the liquidityTokenSupply before the next turn
