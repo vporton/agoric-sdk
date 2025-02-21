@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "canvas": "^2.6.1",
-    "vega": "^5.10.0",
+    "vega": "^5.26.0",
     "vega-canvas": "^1.2.1"
   },
   "devDependencies": {
