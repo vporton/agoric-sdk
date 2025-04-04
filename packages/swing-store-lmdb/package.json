@@ -13,7 +13,7 @@
     "lint-check": "eslint '**/*.js'"
   },
   "dependencies": {
-    "node-lmdb": "^0.8.0"
+    "node-lmdb": "^0.9.4"
   },
   "devDependencies": {
     "@agoric/swing-store-simple": "^0.1.2",
