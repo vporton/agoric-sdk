@@ -48,7 +48,7 @@
     "esm": "^3.2.25",
     "express": "^4.17.0",
     "minimist": "^1.2.0",
-    "morgan": "^1.9.1",
+    "morgan": "^1.10.1",
     "n-readlines": "^1.0.0",
     "node-fetch": "^2.6.0",
     "rollup": "^1.26.2",
